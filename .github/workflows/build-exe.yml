@@ -2,14 +2,12 @@ name: Build GPU-Capable EXE
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  workflow_dispatch:  # Allows manual trigger
+    branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: windows-latest  # Windows runner (free)
+    runs-on: windows-latest
 
     steps:
     - name: Checkout code
@@ -19,145 +17,35 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.9'
-        architecture: 'x64'
 
-    - name: Install PyTorch with CUDA support (libraries only)
+    - name: Install CUDA PyTorch
       run: |
         python -m pip install --upgrade pip
-        # Install PyTorch with CUDA 11.8 - this includes CUDA libraries even though runner has no GPU
         pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
-    - name: Install other dependencies
+    - name: Install requirements
       run: |
-        pip install opencv-python
-        pip install ultralytics
-        pip install pyModbusTCP
-        pip install harvesters
-        pip install openpyxl
-        pip install numpy
-        pip install pillow
-
-    - name: Install PyInstaller
-      run: |
+        pip install opencv-python ultralytics pyModbusTCP harvesters openpyxl pillow numpy
         pip install pyinstaller
 
-    - name: Create PyInstaller spec file for GPU support
+    - name: Build EXE
       run: |
-        $specContent = @"
-# -*- mode: python ; coding: utf-8 -*-
+        pyinstaller --onefile --windowed `
+          --hidden-import torch `
+          --hidden-import torch.cuda `
+          --hidden-import torch.backends.cuda `
+          --hidden-import torch.backends.cudnn `
+          --hidden-import ultralytics `
+          --hidden-import cv2 `
+          --hidden-import PIL `
+          --hidden-import pyModbusTCP `
+          --hidden-import harvesters `
+          --hidden-import openpyxl `
+          --name "DAC_Egg_Counter_GPU" `
+          egg_counter.py
 
-import sys
-import os
-from PyInstaller.utils.hooks import collect_dynamic_libs, collect_data_files
-
-a = Analysis(
-    ['egg_counter.py'],
-    pathex=[],
-    binaries=[],
-    datas=[],
-    hiddenimports=[
-        'torch',
-        'torchvision',
-        'torch.cuda',
-        'torch.backends.cuda',
-        'torch.backends.cudnn',
-        'torch.nn',
-        'torch.nn.parallel',
-        'torch.optim',
-        'torch.utils',
-        'torch.utils.data',
-        'torch.jit',
-        'torch.jit._script',
-        'torch._C',
-        'torch._C._VariableFunctions',
-        'torch._C._nn',
-        'torch._C._cuda',
-        'ultralytics',
-        'ultralytics.nn',
-        'ultralytics.nn.tasks',
-        'ultralytics.yolo',
-        'ultralytics.yolo.v8',
-        'ultralytics.yolo.v8.detect',
-        'ultralytics.yolo.utils',
-        'ultralytics.yolo.utils.torch_utils',
-        'ultralytics.yolo.utils.ops',
-        'cv2',
-        'cv2.gapi',
-        'PIL',
-        'PIL._tkinter_finder',
-        'pyModbusTCP',
-        'harvesters',
-        'harvesters.core',
-        'openpyxl',
-        'openpyxl.styles',
-        'numpy',
-        'numpy.core',
-        'numpy.lib',
-        'numpy.fft',
-        'numpy.linalg',
-        'numpy.random',
-        'queue',
-        'collections',
-        'collections.abc',
-        'datetime',
-        'json',
-        'csv',
-        'glob',
-        'argparse',
-        'threading',
-        'time',
-        'tkinter',
-        'tkinter.ttk',
-        'tkinter.filedialog',
-        'tkinter.messagebox',
-        'tkinter.scrolledtext',
-        'logging',
-        'socketserver',
-        'http',
-        'http.server',
-        'subprocess',
-    ],
-    hookspath=[],
-    hooksconfig={},
-    runtime_hooks=[],
-    excludes=[],
-    noarchive=False,
-)
-
-pyz = PYZ(a.pure)
-
-exe = EXE(
-    pyz,
-    a.scripts,
-    a.binaries,
-    a.datas,
-    [],
-    name='DAC_Egg_Counter_GPU',
-    debug=False,
-    bootloader_ignore_signals=False,
-    strip=False,
-    upx=True,
-    upx_exclude=['vcruntime140.dll'],
-    runtime_tmpdir=None,
-    console=False,
-    disable_windowed_traceback=False,
-    argv_emulation=False,
-    target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
-    icon=None
-)
-"@
-        Set-Content -Path "egg_counter_gpu.spec" -Value $specContent
-
-    - name: Build EXE with PyInstaller
-      run: |
-        pyinstaller --clean egg_counter_gpu.spec
-
-    - name: Upload EXE as artifact
+    - name: Upload EXE
       uses: actions/upload-artifact@v4
       with:
         name: DAC_Egg_Counter_GPU
         path: dist/DAC_Egg_Counter_GPU.exe
-        if-no-files-found: error
-        retention-days: 30
