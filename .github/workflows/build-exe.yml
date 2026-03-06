@@ -1,15 +1,29 @@
-name: Debug Build - Find Missing Files
+name: Build Egg Counter
 
 on:
-  workflow_dispatch:  # Manual trigger only
+  workflow_dispatch:
 
 jobs:
-  debug-build:
+  build:
     runs-on: windows-latest
     
     steps:
-    - name: Checkout code
+    - name: Checkout
       uses: actions/checkout@v4
+    
+    - name: Verify files
+      run: |
+        echo "Current directory:"
+        pwd
+        echo "Files in repository:"
+        dir
+        if (Test-Path "egg_counter.py") {
+          echo "✅ Found egg_counter.py"
+        } else {
+          echo "❌ egg_counter.py NOT FOUND!"
+          exit 1
+        }
+      shell: pwsh
     
     - name: Setup Python
       uses: actions/setup-python@v5
@@ -18,82 +32,29 @@ jobs:
     
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-        pip install opencv-python ultralytics pyModbusTCP harvesters openpyxl numpy pillow
+        pip install torch --index-url https://download.pytorch.org/whl/cu118
+        pip install ultralytics opencv-python pyModbusTCP harvesters openpyxl numpy pillow
         pip install pyinstaller
       shell: pwsh
     
-    - name: Show current directory
+    - name: Build EXE
       run: |
-        Write-Host "Current directory: $(Get-Location)"
-        Write-Host "Files in current directory:"
-        dir
-      shell: pwsh
-    
-    - name: Test if egg_counter.py exists
-      run: |
-        if (Test-Path "egg_counter.py") {
-          Write-Host "✅ egg_counter.py found"
-          Get-Content egg_counter.py -TotalCount 5
-        } else {
-          Write-Host "❌ egg_counter.py NOT found!"
-          Write-Host "Looking for .py files:"
-          dir *.py
-        }
-      shell: pwsh
-    
-    - name: Simple PyInstaller test
-      run: |
-        Write-Host "Creating simple test script..."
-        $testScript = @'
-print("Hello from test script")
-import torch
-print(f"Torch version: {torch.__version__}")
-input("Press Enter to exit...")
-'@
-        Set-Content -Path "test.py" -Value $testScript
-        
-        Write-Host "Building test.exe..."
-        pyinstaller --onefile --name test_app test.py
-        
-        Write-Host "Build completed. Checking output..."
-      shell: pwsh
-    
-    - name: Search for all exe files
-      run: |
-        Write-Host "Searching for .exe files in entire workspace..."
-        Get-ChildItem -Path . -Recurse -Filter *.exe | ForEach-Object {
-          Write-Host "Found: $($_.FullName) - Size: $($_.Length) bytes"
-        }
-      shell: pwsh
-    
-    - name: Check PyInstaller output directories
-      run: |
-        Write-Host "Checking build directory:"
-        if (Test-Path "build") {
-          dir build
-        } else {
-          Write-Host "build directory not found"
-        }
-        
-        Write-Host "`nChecking dist directory:"
-        if (Test-Path "dist") {
+        pyinstaller --onefile --name "EggCounter_GPU" egg_counter.py
+        echo "Build completed. Checking output..."
+        if (Test-Path "dist/EggCounter_GPU.exe") {
+          echo "✅ EXE created successfully!"
           dir dist
-          if (Test-Path "dist/test_app.exe") {
-            Write-Host "✅ test_app.exe found in dist!"
-          }
         } else {
-          Write-Host "dist directory not found"
+          echo "❌ EXE not found!"
+          echo "Contents of dist folder:"
+          if (Test-Path "dist") { dir dist } else { echo "dist folder not found" }
         }
       shell: pwsh
     
-    - name: Upload everything as artifacts
+    - name: Upload EXE
+      if: success()
       uses: actions/upload-artifact@v4
       with:
-        name: debug-output
-        path: |
-          ./
-          !.git/
-          !.github/
-        retention-days: 7
+        name: EggCounter_GPU
+        path: dist/EggCounter_GPU.exe
+        if-no-files-found: error
