@@ -167,7 +167,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='logo.png'  # Add your icon if you have one
+    icon='icon.ico'  # Add your icon if you have one
 )
 
 # Create the one-directory distribution
@@ -179,4 +179,5 @@ coll = COLLECT(
     upx=True,
     upx_exclude=[],
     name='DAC_Egg_Counter'
+
 )
