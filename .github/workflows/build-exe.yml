@@ -1,10 +1,10 @@
-name: Debug Build - Find EXE
+name: Build GPU Egg Counter
 
 on:
   workflow_dispatch:
 
 jobs:
-  debug-build:
+  build:
     runs-on: windows-latest
     
     steps:
@@ -16,57 +16,53 @@ jobs:
       with:
         python-version: '3.9'
     
-    - name: Install dependencies
+    - name: Install PyTorch with CUDA
       run: |
         pip install torch==2.0.1+cu118 torchvision==0.15.2+cu118 --index-url https://download.pytorch.org/whl/cu118
+      shell: pwsh
+    
+    - name: Install other dependencies
+      run: |
         pip install ultralytics opencv-python pyModbusTCP harvesters openpyxl numpy pillow
         pip install pyinstaller
       shell: pwsh
     
-    - name: List all files before build
-      run: |
-        echo "=== Files in repository ==="
-        Get-ChildItem -Path . -Recurse
-      shell: pwsh
-    
     - name: Build with spec file
       run: |
-        echo "=== Building with spec file ==="
         pyinstaller egg_counter.spec
       shell: pwsh
     
-    - name: Search for ALL generated files
+    - name: Check what was built
       run: |
-        echo "=== Searching for all EXE files ==="
-        Get-ChildItem -Path . -Recurse -Filter *.exe | ForEach-Object {
-          echo "Found EXE: $($_.FullName)"
-        }
-        
-        echo "=== Contents of dist folder ==="
+        echo "=== Checking dist folder ==="
         if (Test-Path dist) {
-          Get-ChildItem -Path dist -Recurse
+          Get-ChildItem -Path dist
+          
+          # Try to find any EXE file
+          $exeFiles = Get-ChildItem -Path dist -Filter *.exe -Recurse
+          if ($exeFiles.Count -gt 0) {
+            echo "Found EXE files:"
+            $exeFiles | ForEach-Object {
+              echo "  $($_.Name) at $($_.FullName)"
+              # Copy to a known location
+              Copy-Item $_.FullName -Destination "EggCounter.exe"
+            }
+          } else {
+            echo "No EXE files found in dist"
+          }
         } else {
           echo "dist folder not found"
         }
-        
-        echo "=== Contents of build folder ==="
-        if (Test-Path build) {
-          Get-ChildItem -Path build -Recurse
-        } else {
-          echo "build folder not found"
-        }
-        
-        echo "=== Contents of current directory ==="
-        Get-ChildItem -Path .
       shell: pwsh
     
-    - name: Upload everything as artifacts
+    - name: Upload EXE (try multiple possible names)
       uses: actions/upload-artifact@v4
       with:
-        name: debug-output
+        name: EggCounter_GPU
         path: |
-          dist/
-          build/
+          dist/DAC_Egg_Counter.exe
+          dist/DAC_Egg_Counter_GPU.exe
+          dist/EggCounter.exe
+          EggCounter.exe
           *.exe
-          *.spec
-        retention-days: 7
+        if-no-files-found: warn
