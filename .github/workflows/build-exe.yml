@@ -39,7 +39,7 @@ jobs:
     
     - name: Build EXE
       run: |
-        pyinstaller --onefile --name "EggCounter_GPU" egg_counter.py
+        pyinstaller --noconsole --onedir  --name "EggCounter" egg_counter.py
         echo "Build completed. Checking output..."
         if (Test-Path "dist/EggCounter_GPU.exe") {
           echo "✅ EXE created successfully!"
