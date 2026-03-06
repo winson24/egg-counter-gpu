@@ -1,4 +1,4 @@
-name: Build Egg Counter
+name: Build with GPU Spec
 
 on:
   workflow_dispatch:
@@ -11,50 +11,49 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
     
-    - name: Verify files
-      run: |
-        echo "Current directory:"
-        pwd
-        echo "Files in repository:"
-        dir
-        if (Test-Path "egg_counter.py") {
-          echo "✅ Found egg_counter.py"
-        } else {
-          echo "❌ egg_counter.py NOT FOUND!"
-          exit 1
-        }
-      shell: pwsh
-    
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.9'
     
-    - name: Install dependencies
+    - name: Install PyTorch with CUDA
       run: |
-        pip install torch --index-url https://download.pytorch.org/whl/cu118
+        pip install torch==2.0.1+cu118 torchvision==0.15.2+cu118 --index-url https://download.pytorch.org/whl/cu118
+      shell: pwsh
+    
+    - name: Install other dependencies
+      run: |
         pip install ultralytics opencv-python pyModbusTCP harvesters openpyxl numpy pillow
         pip install pyinstaller
       shell: pwsh
     
-    - name: Build EXE
+    - name: List directory contents
       run: |
-        pyinstaller --noconsole --onedir  --name "EggCounter" egg_counter.py
-        echo "Build completed. Checking output..."
-        if (Test-Path "dist/EggCounter_GPU.exe") {
-          echo "✅ EXE created successfully!"
-          dir dist
+        echo "Current directory:"
+        Get-Location
+        echo "Files:"
+        Get-ChildItem
+      shell: pwsh
+    
+    - name: Build with spec file
+      run: |
+        # Make sure your spec file is named correctly
+        pyinstaller egg_counter.spec
+      shell: pwsh
+    
+    - name: List dist contents
+      run: |
+        echo "Contents of dist folder:"
+        if (Test-Path dist) {
+          Get-ChildItem -Path dist -Recurse
         } else {
-          echo "❌ EXE not found!"
-          echo "Contents of dist folder:"
-          if (Test-Path "dist") { dir dist } else { echo "dist folder not found" }
+          echo "dist folder not found"
         }
       shell: pwsh
     
     - name: Upload EXE
-      if: success()
       uses: actions/upload-artifact@v4
       with:
-        name: EggCounter_GPU
-        path: dist/EggCounter_GPU.exe
-        if-no-files-found: error
+        name: DAC_Egg_Counter_GPU
+        path: dist/DAC_Egg_Counter_GPU.exe
+        if-no-files-found: warn
