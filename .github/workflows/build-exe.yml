@@ -1,10 +1,10 @@
-name: Build with GPU Spec
+name: Debug Build - Find EXE
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
+  debug-build:
     runs-on: windows-latest
     
     steps:
@@ -16,44 +16,57 @@ jobs:
       with:
         python-version: '3.9'
     
-    - name: Install PyTorch with CUDA
+    - name: Install dependencies
       run: |
         pip install torch==2.0.1+cu118 torchvision==0.15.2+cu118 --index-url https://download.pytorch.org/whl/cu118
-      shell: pwsh
-    
-    - name: Install other dependencies
-      run: |
         pip install ultralytics opencv-python pyModbusTCP harvesters openpyxl numpy pillow
         pip install pyinstaller
       shell: pwsh
     
-    - name: List directory contents
+    - name: List all files before build
       run: |
-        echo "Current directory:"
-        Get-Location
-        echo "Files:"
-        Get-ChildItem
+        echo "=== Files in repository ==="
+        Get-ChildItem -Path . -Recurse
       shell: pwsh
     
     - name: Build with spec file
       run: |
-        # Make sure your spec file is named correctly
+        echo "=== Building with spec file ==="
         pyinstaller egg_counter.spec
       shell: pwsh
     
-    - name: List dist contents
+    - name: Search for ALL generated files
       run: |
-        echo "Contents of dist folder:"
+        echo "=== Searching for all EXE files ==="
+        Get-ChildItem -Path . -Recurse -Filter *.exe | ForEach-Object {
+          echo "Found EXE: $($_.FullName)"
+        }
+        
+        echo "=== Contents of dist folder ==="
         if (Test-Path dist) {
           Get-ChildItem -Path dist -Recurse
         } else {
           echo "dist folder not found"
         }
+        
+        echo "=== Contents of build folder ==="
+        if (Test-Path build) {
+          Get-ChildItem -Path build -Recurse
+        } else {
+          echo "build folder not found"
+        }
+        
+        echo "=== Contents of current directory ==="
+        Get-ChildItem -Path .
       shell: pwsh
     
-    - name: Upload EXE
+    - name: Upload everything as artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: DAC_Egg_Counter_GPU
-        path: dist/DAC_Egg_Counter_GPU.exe
-        if-no-files-found: warn
+        name: debug-output
+        path: |
+          dist/
+          build/
+          *.exe
+          *.spec
+        retention-days: 7
